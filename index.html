@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tirvox: comparte tus APK</title>
+<link rel="icon" href="logo.png">
+<style>
+:root{--bg:#0f1a2b;--line:#2a3b57;--tx:#f3efe6;--mut:#9aa7ba;--ac:#c9a45c;--bad:#e58a8a;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--tx);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:680px;margin:auto;padding:22px 18px 110px}
+header{display:flex;align-items:center;gap:12px}
+#logo{width:44px;height:44px;border-radius:10px;object-fit:cover;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.brand{font:700 26px Georgia,"Times New Roman",serif;letter-spacing:.03em}
+h1{font:400 clamp(32px,9vw,46px)/1.12 Georgia,"Times New Roman",serif;margin:44px 0 12px;max-width:14em}
+.sub{color:var(--mut);margin:0 0 28px;max-width:30em}
+.zone{border:1.5px dashed var(--ac);border-radius:14px;padding:26px 20px}
+.btn{background:var(--ac);color:#17120a;border:0;border-radius:8px;padding:13px 22px;font:600 16px system-ui,sans-serif;cursor:pointer}
+.btn:disabled{opacity:.55}
+.btn.s{padding:9px 14px;font-size:14px}
+.btn.g{background:none;color:var(--bad);border:1px solid var(--line)}
+.hint{color:var(--mut);font-size:14px;margin:12px 0 0}
+#pg{display:none;height:5px;background:var(--line);border-radius:5px;margin-top:16px;overflow:hidden}
+#pg i{display:block;height:100%;width:0;background:var(--ac);transition:width .2s}
+h2{font:400 24px Georgia,serif;margin:46px 0 4px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.app{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ico{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--ac);color:var(--ac);display:grid;place-items:center;font:700 17px Georgia,serif}
+.inf{flex:1;min-width:130px;overflow:hidden}
+.inf b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inf small{color:var(--mut)}
+.empty{color:var(--mut);padding:26px 0}
+#bar{display:none;justify-content:space-between;align-items:center;margin:18px 0 0;padding:10px 14px;border:1px solid var(--ac);border-radius:8px;color:var(--ac);font-size:15px}
+#bar button{background:none;border:0;color:inherit;text-decoration:underline;font:inherit;cursor:pointer}
+#sec{position:fixed;right:0;bottom:0;width:64px;height:64px;opacity:0;border:0;background:transparent}
+dialog{background:#16233a;color:var(--tx);border:1px solid var(--line);border-radius:14px;padding:22px;width:min(92vw,380px)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog b{font:400 20px Georgia,serif}
+dialog input{width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--tx);font-size:16px;margin:14px 0 6px}
+#msg{color:var(--bad);font-size:14px;min-height:22px;margin:0 0 8px}
+footer{color:var(--mut);font-size:14px;margin-top:48px}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<header>
+<img id="logo" src="logo.png" alt="Tirvox" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23c9a45c%22/%3E%3Ctext x=%2232%22 y=%2246%22 font-size=%2240%22 font-family=%22Georgia,serif%22 font-weight=%22700%22 text-anchor=%22middle%22 fill=%22%2317120a%22%3ET%3C/text%3E%3C/svg%3E'">
+<span class="brand">Tirvox</span>
+</header>
+<div id="bar"><span>Modo dueño activo</span><button id="out">Salir</button></div>
+<h1>Tus APK, al alcance de todos.</h1>
+<p class="sub">Sube un archivo APK y cualquier persona podrá descargarlo desde su teléfono.</p>
+<section class="zone">
+<button class="btn" id="pick">Subir archivo APK</button>
+<input id="file" type="file" accept=".apk,application/vnd.android.package-archive" hidden>
+<div id="pg"><i></i></div>
+<p class="hint" id="st">Solo archivos .apk, hasta 150 MB.</p>
+</section>
+<h2>APK disponibles</h2>
+<div id="list"><p class="empty">Cargando…</p></div>
+<footer>Tirvox</footer>
+</main>
+<button id="sec" aria-hidden="true" tabindex="-1"></button>
+<dialog id="own">
+<b>Modo dueño</b>
+<input id="code" type="password" placeholder="Código de dueño" autocomplete="off">
+<p id="msg"></p>
+<button class="btn" id="go">Entrar</button>
+<button class="btn g" id="cl">Cancelar</button>
+</dialog>
+<script>
+const API='/api',CH=3*1024*1024,MAX=150,$=s=>document.querySelector(s);
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+const fmt=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
+let own='',mine={};
+try{own=sessionStorage.getItem('tx_o')||'';mine=JSON.parse(localStorage.getItem('tx_mine')||'{}')}catch(e){}
+const save=()=>{try{localStorage.setItem('tx_mine',JSON.stringify(mine))}catch(e){}};
+const ui=()=>{$('#bar').style.display=own?'flex':'none'};
+const openOwn=()=>{const d=$('#own');if(!d.open)d.showModal()};
+const multi=(e,f)=>{let c=0,t;e.addEventListener('click',()=>{clearTimeout(t);t=setTimeout(()=>c=0,2000);if(++c>=5){c=0;f()}})};
+multi($('#logo'),openOwn);multi($('#sec'),openOwn);
+$('#cl').onclick=()=>$('#own').close();
+$('#go').onclick=async()=>{
+  const c=$('#code').value.trim();$('#msg').textContent='';
+  try{
+    const r=await fetch(API+'/owner',{method:'POST',headers:{'x-owner':c}});
+    if(!r.ok)throw 0;
+    own=c;try{sessionStorage.setItem('tx_o',c)}catch(e){}
+    $('#code').value='';$('#own').close();ui();load();
+  }catch(e){$('#msg').textContent='Código incorrecto.'}
+};
+$('#out').onclick=()=>{own='';try{sessionStorage.removeItem('tx_o')}catch(e){}ui();load()};
+
+async function load(){
+  const box=$('#list');
+  try{
+    const r=await fetch(API+'/list');if(!r.ok)throw 0;
+    const a=await r.json();
+    box.replaceChildren();
+    if(!a.length)box.append(el('p','empty','Todavía no hay APK. Sube el primero.'));
+    a.forEach(x=>{
+      const c=el('div','app'),i=el('div','inf');
+      i.append(el('b','',x.name),el('small','',fmt(x.size)+', '+new Date(x.date).toLocaleDateString('es')));
+      const dl=el('button','btn s','Descargar');dl.onclick=()=>download(x,dl);
+      c.append(el('div','ico',x.name[0].toUpperCase()),i,dl);
+      if(own||mine[x.id]){const b=el('button','btn s g','Borrar');b.onclick=()=>del(x);c.append(b)}
+      box.append(c);
+    });
+  }catch(e){box.replaceChildren(el('p','empty','No se pudo cargar la lista. Verifica que el sitio esté desplegado con las funciones.'))}
+}
+
+async function download(x,b){
+  b.disabled=true;
+  try{
+    const parts=[];
+    for(let i=0;i<x.n;i++){
+      b.textContent=Math.round(i/x.n*100)+'%';
+      const r=await fetch(`${API}/file/${x.id}/${i}`);if(!r.ok)throw 0;
+      parts.push(await r.arrayBuffer());
+    }
+    const url=URL.createObjectURL(new Blob(parts,{type:'application/vnd.android.package-archive'}));
+    const a=el('a');a.href=url;a.download=x.name;document.body.append(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){alert('No se pudo descargar el archivo. Inténtalo de nuevo.')}
+  b.textContent='Descargar';b.disabled=false;
+}
+
+async function del(x){
+  if(!confirm('¿Borrar "'+x.name+'"?'))return;
+  try{
+    const r=await fetch(API+'/del',{method:'POST',headers:{'x-owner':own},body:JSON.stringify({id:x.id,tok:mine[x.id]||''})});
+    if(!r.ok)throw 0;
+    delete mine[x.id];save();load();
+  }catch(e){alert('No se pudo borrar.')}
+}
+
+async function send(url,body){
+  let err;
+  for(let t=0;t<3;t++){
+    try{
+      const r=await fetch(url,{method:'POST',headers:{'content-type':'application/octet-stream'},body});
+      if(r.ok)return;
+      const j=await r.json().catch(()=>({}));
+      err=new Error(j.error||'Error al subir');
+      if(r.status<500)break;
+    }catch(e){err=new Error('Sin conexión')}
+    await new Promise(r=>setTimeout(r,800));
+  }
+  throw err;
+}
+
+$('#pick').onclick=()=>$('#file').click();
+$('#file').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';
+  if(!f)return;
+  if(!/\.apk$/i.test(f.name))return alert('Solo se permiten archivos .apk');
+  if(f.size<4||f.size>MAX*1048576)return alert('El APK debe pesar como máximo '+MAX+' MB.');
+  const id=crypto.randomUUID(),tok=crypto.randomUUID(),n=Math.ceil(f.size/CH);
+  const pg=$('#pg'),bar=$('#pg i'),st=$('#st');
+  $('#pick').disabled=true;pg.style.display='block';bar.style.width='0';
+  try{
+    for(let i=0;i<n;i++){
+      st.textContent='Subiendo '+f.name+'… '+Math.round(i/n*100)+'%';
+      await send(`${API}/chunk?id=${id}&tok=${tok}&i=${i}&n=${n}&name=${encodeURIComponent(f.name)}`,f.slice(i*CH,(i+1)*CH));
+      bar.style.width=Math.round((i+1)/n*100)+'%';
+    }
+    mine[id]=tok;save();
+    st.textContent='Listo, tu APK ya está publicado.';
+  }catch(err){
+    fetch(API+'/del',{method:'POST',body:JSON.stringify({id,tok})}).catch(()=>{});
+    st.textContent='No se pudo subir: '+err.message+'.';
+  }
+  $('#pick').disabled=false;pg.style.display='none';
+  load();
+};
+ui();load();
+</script>
+</body>
+</html>
